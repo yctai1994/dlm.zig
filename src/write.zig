@@ -1,9 +1,6 @@
 const std = @import("std");
-const mem = std.mem;
-const testing = std.testing;
-const mask_mantissa: u64 = 0b0_00000000000_1111111111111111111111111111111111111111111111111111;
 
-fn charFromInt(int: u64) u8 {
+fn hexFromInt(int: u64) u8 {
     return switch (int) {
         0...9 => @as(u8, @truncate(int)) + 48,
         10...15 => @as(u8, @truncate(int)) + 87,
@@ -11,28 +8,31 @@ fn charFromInt(int: u64) u8 {
     };
 }
 
-pub fn write(buffer: []u8, val: f64) void {
+pub fn write(buffer: []u8, val: f64) []u8 {
+    inline for (
+        .{ 0, 1, 2, 3, 17 },
+        .{ '0', 'x', '1', '.', 'p' },
+    ) |i, c| buffer[i] = c;
+
     var tmp: u64 = @bitCast(val);
-    buffer[0] = if (tmp >> 63 == 0) '+' else '-';
-    inline for (.{ '0', 'x', '1', '.' }, 1..) |c, i| buffer[i] = c;
-
-    tmp &= mask_mantissa;
-
-    var ind: u8 = 17;
-    while (4 < ind) : ({
+    var ind: u8 = 16;
+    while (3 < ind) : ({
         tmp >>= 4;
         ind -= 1;
-    }) buffer[ind] = charFromInt(tmp & 0xF);
+    }) buffer[ind] = hexFromInt(tmp & 0xf);
 
-    buffer[18] = 'p';
-    return;
+    ind = 20;
+    while (17 < ind) : ({
+        tmp >>= 4;
+        ind -= 1;
+    }) buffer[ind] = hexFromInt(tmp & 0xf);
+
+    return buffer[0..];
 }
 
 test "write" {
-    var buffer: [19]u8 = undefined;
+    var buffer: [21]u8 = undefined;
 
-    write(&buffer, 0x1.921fb54442d18p-1);
-    try testing.expect(mem.eql(u8, &buffer, "+0x1.921fb54442d18p"));
-    write(&buffer, -0x1.921fb54442d18p-1);
-    try testing.expect(mem.eql(u8, &buffer, "-0x1.921fb54442d18p"));
+    try std.testing.expect(std.mem.eql(u8, write(&buffer, std.math.pi), "0x1.921fb54442d18p400"));
+    try std.testing.expect(std.mem.eql(u8, write(&buffer, 0x1.fffffffffffffp+1023), "0x1.fffffffffffffp7fe"));
 }
